@@ -17,10 +17,11 @@ import {
   switchWorkspaceAction
 } from "@/lib/actions/workspace";
 import { CopyButton } from "@/components/copy-button";
+import { ErrorToast } from "@/components/error-toast";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: { error?: string } }) {
   const session = await requireSession();
-  const bannerError = searchParams?.error ? decodeURIComponent(searchParams.error) : "";
+  const toastMessage = searchParams?.error ? decodeURIComponent(searchParams.error) : "";
 
   const h = headers();
   const proto = h.get("x-forwarded-proto") ?? "https";
@@ -52,15 +53,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
   const pendingInvites = (ws?.invites ?? []).filter((inv) => !inv.acceptedAt);
   const ownerCount = members.filter((m) => m.role === "OWNER").length;
 
-  const myMembership = members.find((m) => m.userId === session.userId);
-
   return (
     <div className="space-y-6">
-      {bannerError ? (
-        <div className="rounded-2xl bg-rose-500/10 p-4 text-sm text-rose-200 ring-1 ring-rose-400/20">
-          {bannerError}
-        </div>
-      ) : null}
+      {/* ✅ Converts ?error=... into a toast, then cleans the URL back to /app */}
+      <ErrorToast message={toastMessage} replaceTo="/app" />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -261,8 +257,8 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
               {members.map((m) => {
                 const isSelf = m.userId === session.userId;
                 const canPromote = isOwner && m.role === "MEMBER";
-                const canDemote = isOwner && m.role === "OWNER" && ownerCount > 1; // never demote last owner
-                const canRemove = isOwner && !isSelf; // server blocks last-owner remove
+                const canDemote = isOwner && m.role === "OWNER" && ownerCount > 1;
+                const canRemove = isOwner && !isSelf;
 
                 return (
                   <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 p-3 ring-1 ring-white/10">
@@ -300,7 +296,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
               })}
             </div>
             <div className="mt-2 text-xs text-zinc-500">
-              Promotions/demotions apply immediately (role is refreshed from DB on every request).
+              Role changes apply immediately. Messages appear as toasts, not banners.
             </div>
           </div>
 
@@ -329,14 +325,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                         </div>
                         <div className="flex items-center gap-2">
                           <form action={resendInviteAction.bind(null, inv.id)}>
-                            <Button type="submit" variant="ghost">
-                              Resend
-                            </Button>
+                            <Button type="submit" variant="ghost">Resend</Button>
                           </form>
                           <form action={revokeInviteAction.bind(null, inv.id)}>
-                            <Button type="submit" variant="danger">
-                              Revoke
-                            </Button>
+                            <Button type="submit" variant="danger">Revoke</Button>
                           </form>
                         </div>
                       </div>
