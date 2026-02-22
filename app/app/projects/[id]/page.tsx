@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
 import { Card, CardBody, CardHeader, Button, Badge } from "@/components/ui";
-import { generateInsightsAction, generatePositioningAction, createExperimentWithVariantsAction } from "@/lib/actions/generate";
+import { createExperimentWithVariantsAction } from "@/lib/actions/generate";
 import { AssetsPanel } from "@/components/assets-panel";
+import { ResearchPanel } from "@/components/research-panel";
+import { PositioningPanel } from "@/components/positioning-panel";
 import type { AssetType } from "@/lib/constants";
 
 export default async function ProjectPage({
@@ -38,28 +39,6 @@ export default async function ProjectPage({
     );
   }
 
-  async function addSource(formData: FormData) {
-    "use server";
-    const s = await requireSession();
-
-    const type = String(formData.get("type") || "NOTES");
-    const title = String(formData.get("title") || "").trim();
-    const content = String(formData.get("content") || "").trim();
-
-    if (!title || !content) throw new Error("Title and content required.");
-
-    await prisma.source.create({
-      data: {
-        projectId,
-        type,
-        title,
-        content
-      }
-    });
-
-    redirect(`/app/projects/${projectId}?tab=research`);
-  }
-
   const navTabs = [
     { key: "research", label: "Research" },
     { key: "positioning", label: "Positioning" },
@@ -79,6 +58,33 @@ export default async function ProjectPage({
       contentMarkdown: it.contentMarkdown
     }))
   }));
+
+  const initialSources = project.sources.map((s) => ({
+    id: s.id,
+    type: s.type,
+    title: s.title,
+    content: s.content,
+    createdAt: s.createdAt.toISOString()
+  }));
+
+  const initialClusters = project.clusters.map((c) => ({
+    id: c.id,
+    label: c.label,
+    summary: c.summary,
+    who: c.who,
+    severity: c.severity,
+    frequency: c.frequency
+  }));
+
+  const initialPositioning = project.positioning
+    ? {
+        problemStatement: project.positioning.problemStatement,
+        valueProp: project.positioning.valueProp,
+        recommendedAngle: project.positioning.recommendedAngle,
+        pricingJson: project.positioning.pricingJson,
+        optionsJson: project.positioning.optionsJson
+      }
+    : null;
 
   return (
     <div className="space-y-5">
@@ -105,134 +111,15 @@ export default async function ProjectPage({
       </div>
 
       {tab === "research" ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader
-              title="Sources"
-              subtitle="Paste reviews, forum threads, competitor notes, or transcripts."
-              right={
-                <form action={generateInsightsAction.bind(null, projectId)}>
-                  <Button type="submit">Generate Insights</Button>
-                </form>
-              }
-            />
-            <CardBody className="space-y-4">
-              <form action={addSource} className="space-y-3 rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="text-xs text-zinc-400">Type</label>
-                    <select name="type" className="mt-1 w-full rounded-xl bg-zinc-950/40 px-3 py-2 text-sm ring-1 ring-white/10">
-                      <option value="NOTES">Notes</option>
-                      <option value="REVIEW">Review</option>
-                      <option value="FORUM">Forum</option>
-                      <option value="COMPETITOR">Competitor</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-zinc-400">Title</label>
-                    <input
-                      name="title"
-                      className="mt-1 w-full rounded-xl bg-zinc-950/40 px-3 py-2 text-sm ring-1 ring-white/10"
-                      placeholder="Reddit thread: pricing complaints"
-                      required
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-zinc-400">Content</label>
-                  <textarea
-                    name="content"
-                    className="mt-1 min-h-[140px] w-full rounded-xl bg-zinc-950/40 px-3 py-2 text-sm ring-1 ring-white/10"
-                    placeholder="Paste text here..."
-                    required
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button type="submit" variant="ghost">Add source</Button>
-                </div>
-              </form>
-
-              <div className="space-y-2">
-                {project.sources.length === 0 ? (
-                  <div className="text-sm text-zinc-300">No sources yet. Add 2–5 and then Generate Insights.</div>
-                ) : (
-                  project.sources.map((s) => (
-                    <div key={s.id} className="rounded-xl bg-zinc-950/40 p-4 ring-1 ring-white/10">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-semibold">{s.title}</div>
-                        <Badge>{s.type}</Badge>
-                      </div>
-                      <div className="mt-2 text-xs text-zinc-400 line-clamp-3">{s.content}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="Insights" subtitle="Clusters appear here after generation." />
-            <CardBody className="space-y-3">
-              {project.clusters.length === 0 ? (
-                <div className="text-sm text-zinc-300">Generate insights to see clustered pains and gaps.</div>
-              ) : (
-                project.clusters.map((c) => (
-                  <div key={c.id} className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                    <div className="text-sm font-semibold">{c.label}</div>
-                    <div className="mt-1 text-sm text-zinc-300">{c.summary}</div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-300">
-                      <Badge>Severity {c.severity}/5</Badge>
-                      <Badge>Frequency {c.frequency}/5</Badge>
-                      <Badge>{c.who}</Badge>
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardBody>
-          </Card>
-        </div>
+        <ResearchPanel projectId={projectId} initialSources={initialSources} initialClusters={initialClusters} />
       ) : null}
 
       {tab === "positioning" ? (
-        <Card>
-          <CardHeader
-            title="Positioning"
-            subtitle="Generate ICP, angles, and pricing hypotheses."
-            right={
-              <form action={generatePositioningAction.bind(null, projectId)}>
-                <Button type="submit">Generate</Button>
-              </form>
-            }
-          />
-          <CardBody className="space-y-4">
-            {!project.positioning ? (
-              <div className="text-sm text-zinc-300">No positioning yet. Click Generate.</div>
-            ) : (
-              <>
-                <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                  <div className="text-xs text-zinc-400">Problem</div>
-                  <div className="mt-2 text-sm text-zinc-200">{project.positioning.problemStatement}</div>
-                </div>
-                <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                  <div className="text-xs text-zinc-400">Value proposition</div>
-                  <div className="mt-2 text-sm text-zinc-200">{project.positioning.valueProp}</div>
-                </div>
-                <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-                  <div className="text-xs text-zinc-400">Recommended angle</div>
-                  <div className="mt-2 text-sm text-zinc-200">{project.positioning.recommendedAngle}</div>
-                </div>
-              </>
-            )}
-          </CardBody>
-        </Card>
+        <PositioningPanel projectId={projectId} initialPositioning={initialPositioning} />
       ) : null}
 
       {tab === "assets" ? (
-        <AssetsPanel
-          projectId={projectId}
-          initialAssets={initialAssets}
-          initialSelectedAssetId={searchParams.asset || ""}
-        />
+        <AssetsPanel projectId={projectId} initialAssets={initialAssets} initialSelectedAssetId={searchParams.asset || ""} />
       ) : null}
 
       {tab === "experiments" ? (
