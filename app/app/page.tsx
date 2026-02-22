@@ -2,34 +2,22 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { Card, CardBody, CardHeader, Button, Badge, Input } from "@/components/ui";
-import { logoutAction } from "@/lib/actions/auth";
+import { Card, CardBody, CardHeader, Badge, Input } from "@/components/ui";
 import { getWorkspaceTier } from "@/lib/entitlements";
 import { LIMITS } from "@/lib/plan";
 import { setPlanAction, saveAISettingsAction } from "@/lib/actions/settings";
-import { createInviteAction, revokeInviteAction, resendInviteAction } from "@/lib/actions/invites";
-import {
-  promoteMemberAction,
-  demoteOwnerAction,
-  transferOwnershipAction,
-  removeMemberAction,
-  leaveWorkspaceAction,
-  switchWorkspaceAction
-} from "@/lib/actions/workspace";
-import { CopyButton } from "@/components/copy-button";
 import { SubmitButton } from "@/components/submit-button";
-import { ErrorToast } from "@/components/error-toast";
+import { TeamPanel } from "@/components/team-panel";
 
-export default async function DashboardPage({ searchParams }: { searchParams?: { error?: string } }) {
+export default async function DashboardPage() {
   const session = await requireSession();
-  const toastMessage = searchParams?.error ? decodeURIComponent(searchParams.error) : "";
 
   const h = headers();
   const proto = h.get("x-forwarded-proto") ?? "https";
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const baseUrl = `${proto}://${host}`;
 
-  const [projects, tier, ws, allMemberships] = await Promise.all([
+  const [projects, tier, ws] = await Promise.all([
     prisma.project.findMany({ where: { workspaceId: session.workspaceId }, orderBy: { createdAt: "desc" } }),
     getWorkspaceTier(session.workspaceId),
     prisma.workspace.findUnique({
@@ -38,11 +26,6 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
         invites: { orderBy: { createdAt: "desc" } },
         memberships: { include: { user: true }, orderBy: { createdAt: "asc" } }
       }
-    }),
-    prisma.membership.findMany({
-      where: { userId: session.userId },
-      include: { workspace: true },
-      orderBy: { createdAt: "asc" }
     })
   ]);
 
@@ -50,19 +33,26 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
   const canHaveTeam = limits.maxMembers > 1;
   const isOwner = session.role === "OWNER";
 
-  const members = ws?.memberships ?? [];
-  const pendingInvites = (ws?.invites ?? []).filter((inv) => !inv.acceptedAt);
-  const ownerCount = members.filter((m) => m.role === "OWNER").length;
+  const members = (ws?.memberships ?? []).map(m => ({
+    id: m.id,
+    userId: m.userId,
+    email: m.user.email,
+    role: (m.role === "OWNER" ? "OWNER" : "MEMBER") as "OWNER" | "MEMBER"
+  }));
+
+  const invites = (ws?.invites ?? []).map(i => ({
+    id: i.id,
+    email: i.email,
+    token: i.token,
+    expiresAt: i.expiresAt.toISOString(),
+    acceptedAt: i.acceptedAt ? i.acceptedAt.toISOString() : null
+  }));
 
   return (
     <div className="space-y-6">
-      {/* ✅ Converts ?error=... into a toast, then cleans the URL back to /app */}
-      <ErrorToast message={toastMessage} replaceTo="/app" />
-
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-2xl font-semibold">Dashboard</div>
-
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-300">
             <span>Workspace:</span>
             <span className="font-semibold text-white">{ws?.name}</span>
@@ -71,56 +61,21 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
             <span>·</span>
             <span>Plan</span> <Badge>{tier}</Badge>
           </div>
-
           <div className="mt-2 text-xs text-zinc-400">
             Limits: {limits.maxProjects} projects · {limits.maxGenerationsPerMonth}/mo generations · {limits.maxExperiments} experiments/project · {limits.maxMembers} members
           </div>
-
-          {allMemberships.length > 1 ? (
-            <form action={switchWorkspaceAction} className="mt-3 flex items-center gap-2">
-              <select
-                name="workspaceId"
-                defaultValue={session.workspaceId}
-                className="rounded-xl bg-zinc-950/40 px-3 py-2 text-sm ring-1 ring-white/10"
-              >
-                {allMemberships.map((m) => (
-                  <option key={m.workspaceId} value={m.workspaceId}>
-                    {m.workspace.name}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit" variant="ghost">
-                Switch
-              </Button>
-            </form>
-          ) : null}
         </div>
 
         <div className="flex items-center gap-2">
-          <form action={leaveWorkspaceAction}>
-            <Button variant="ghost" type="submit">
-              Leave workspace
-            </Button>
-          </form>
-          <form action={logoutAction}>
-            <Button variant="ghost" type="submit">
-              Log out
-            </Button>
-          </form>
+          <Link href="/app/projects/new">
+            <SubmitButton pendingText="Opening…">New Project</SubmitButton>
+          </Link>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader
-            title="Projects"
-            subtitle="Jump back in or create a new one."
-            right={
-              <Link href="/app/projects/new">
-                <Button>New Project</Button>
-              </Link>
-            }
-          />
+          <CardHeader title="Projects" subtitle="Jump back in or create a new one." />
           <CardBody>
             {projects.length === 0 ? (
               <div className="text-sm text-zinc-300">
@@ -153,7 +108,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
             <form action={setPlanAction} className="space-y-2">
               <div className="text-sm font-semibold">Plan</div>
               <div className="grid grid-cols-2 gap-2">
-                {(["FREE", "SOLO", "TEAM", "AGENCY"] as const).map((t) => (
+                {(["FREE","SOLO","TEAM","AGENCY"] as const).map(t => (
                   <label key={t} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10">
                     <input type="radio" name="tier" value={t} defaultChecked={tier === t} />
                     <span>{t}</span>
@@ -168,7 +123,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
               <div className="text-sm font-semibold">AI Provider (BYOK)</div>
 
               <div className="grid grid-cols-3 gap-2">
-                {(["MOCK", "OPENAI", "ANTHROPIC"] as const).map((p) => (
+                {(["MOCK","OPENAI","ANTHROPIC"] as const).map(p => (
                   <label key={p} className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10">
                     <input type="radio" name="aiProvider" value={p} defaultChecked={(ws?.aiProvider ?? "MOCK") === p} />
                     <span>{p}</span>
@@ -186,9 +141,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                 <Input type="password" name="aiKey" defaultValue={ws?.aiKey ?? ""} placeholder="Paste key (stored in local DB)" />
               </div>
 
-              <Button type="submit" variant="ghost">
-                Save AI settings
-              </Button>
+              <SubmitButton variant="ghost" pendingText="Saving…">Save AI settings</SubmitButton>
               <div className="text-xs text-zinc-400">If key is missing or errors occur, LaunchOS falls back to Mock Mode.</div>
             </form>
           </CardBody>
@@ -202,148 +155,20 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
             !canHaveTeam
               ? "Upgrade plan to TEAM/AGENCY to invite members."
               : isOwner
-              ? "Owner-only invites. Transfer ownership safely."
+              ? "Optimistic UI: invites & role changes feel instant."
               : "Only owners can invite or manage roles."
           }
         />
-        <CardBody className="space-y-4">
-          {isOwner ? (
-            <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-              <div className="text-sm font-semibold">Transfer ownership</div>
-              <div className="mt-1 text-sm text-zinc-300">
-                Promote a member to OWNER. Optionally demote yourself to MEMBER.
-              </div>
-
-              <form action={transferOwnershipAction} className="mt-3 space-y-3">
-                <div className="grid gap-2 md:grid-cols-2">
-                  <div>
-                    <label className="text-xs text-zinc-400">Target member</label>
-                    <select
-                      name="targetMembershipId"
-                      className="w-full rounded-xl bg-zinc-950/40 px-3 py-2 text-sm ring-1 ring-white/10"
-                      defaultValue=""
-                      required
-                    >
-                      <option value="" disabled>Select a member…</option>
-                      {members
-                        .filter((m) => m.userId !== session.userId)
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.user.email} ({m.role})
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10">
-                      <input type="checkbox" name="demoteSelf" />
-                      <span>Demote me after transfer</span>
-                    </label>
-                  </div>
-                </div>
-
-                <SubmitButton pendingText="Transferring…">Transfer ownership</SubmitButton>
-
-                <div className="text-xs text-zinc-500">
-                  Safety: you can’t demote the last owner or leave if you’re the last owner.
-                </div>
-              </form>
-            </div>
-          ) : null}
-
-          <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-            <div className="text-sm font-semibold">Members</div>
-            <div className="mt-2 space-y-2">
-              {members.map((m) => {
-                const isSelf = m.userId === session.userId;
-                const canPromote = isOwner && m.role === "MEMBER";
-                const canDemote = isOwner && m.role === "OWNER" && ownerCount > 1;
-                const canRemove = isOwner && !isSelf;
-
-                return (
-                  <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 p-3 ring-1 ring-white/10">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{m.user.email}</div>
-                      <div className="text-xs text-zinc-400">
-                        {m.role}{isSelf ? " · You" : ""}
-                        {m.role === "OWNER" && ownerCount === 1 ? " · (Last owner)" : ""}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge>Active</Badge>
-
-                      {canPromote ? (
-                        <form action={promoteMemberAction.bind(null, m.id)}>
-                          <SubmitButton pendingText="Promoting…">Promote</SubmitButton>
-                        </form>
-                      ) : null}
-
-                      {canDemote ? (
-                        <form action={demoteOwnerAction.bind(null, m.id)}>
-                          <SubmitButton variant="ghost" pendingText="Demoting…">Demote</SubmitButton>
-                        </form>
-                      ) : null}
-
-                      {canRemove ? (
-                        <form action={removeMemberAction.bind(null, m.id)}>
-                          <SubmitButton variant="danger" pendingText="Removing…">Remove</SubmitButton>
-                        </form>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-2 text-xs text-zinc-500">
-              Role changes apply immediately. Messages appear as toasts, not banners.
-            </div>
-          </div>
-
-          {canHaveTeam && isOwner ? (
-            <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
-              <div className="text-sm font-semibold">Invite a member</div>
-              <form action={createInviteAction} className="mt-3 flex flex-col gap-2 md:flex-row">
-                <Input name="email" type="email" placeholder="teammate@email.com" required />
-                <SubmitButton pendingText="Creating…">Create invite</SubmitButton>
-              </form>
-              <div className="mt-2 text-xs text-zinc-400">MVP uses copyable invite links (no email sending yet).</div>
-
-              <div className="mt-4 space-y-2">
-                {pendingInvites.map((inv) => {
-                  const isExpired = inv.expiresAt <= new Date();
-                  const link = `${baseUrl}/auth/signup?invite=${inv.token}`;
-
-                  return (
-                    <div key={inv.id} className="rounded-xl bg-zinc-950/40 p-3 ring-1 ring-white/10">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <div className="text-sm font-semibold">{inv.email}</div>
-                          <div className="text-xs text-zinc-400">
-                            {isExpired ? "Expired" : `Expires: ${inv.expiresAt.toISOString().slice(0, 10)}`}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <form action={resendInviteAction.bind(null, inv.id)}>
-                            <SubmitButton variant="ghost" pendingText="Resending…">Resend</SubmitButton>
-                          </form>
-                          <form action={revokeInviteAction.bind(null, inv.id)}>
-                            <SubmitButton variant="danger" pendingText="Revoking…">Revoke</SubmitButton>
-                          </form>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2 rounded-xl bg-white/5 p-2 ring-1 ring-white/10">
-                        <div className="truncate text-xs text-zinc-300">{link}</div>
-                        <CopyButton text={link} label="Copy link" />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
+        <CardBody>
+          <TeamPanel
+            baseUrl={baseUrl}
+            isOwner={isOwner}
+            canHaveTeam={canHaveTeam}
+            maxMembers={limits.maxMembers}
+            currentUserId={session.userId}
+            members={members}
+            invites={invites}
+          />
         </CardBody>
       </Card>
     </div>
