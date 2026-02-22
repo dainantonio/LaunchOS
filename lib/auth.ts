@@ -15,19 +15,22 @@ export type SessionPayload = {
   role: "OWNER" | "MEMBER";
 };
 
-export async function createSession(userId: string) {
-  // Pick the first workspace membership as active workspace
-  const membership = await prisma.membership.findFirst({
-    where: { userId },
-    include: { workspace: { include: { plan: true } } },
-    orderBy: { createdAt: "asc" }
-  });
+export async function createSession(userId: string, workspaceId?: string) {
+  const membership = workspaceId
+    ? await prisma.membership.findFirst({
+        where: { userId, workspaceId }
+      })
+    : await prisma.membership.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "asc" }
+      });
+
   if (!membership) throw new Error("No workspace membership found.");
 
   const payload: SessionPayload = {
     userId,
     workspaceId: membership.workspaceId,
-    role: membership.role
+    role: (membership.role === "OWNER" ? "OWNER" : "MEMBER")
   };
 
   const token = await new SignJWT(payload as any)
@@ -49,12 +52,20 @@ export async function createSession(userId: string) {
 export async function getSession(): Promise<SessionPayload | null> {
   const token = cookies().get(COOKIE_NAME)?.value;
   if (!token) return null;
+
   try {
     const { payload } = await jwtVerify(token, secretKey());
     const userId = String(payload.userId || "");
     const workspaceId = String(payload.workspaceId || "");
-    const role = (payload.role === "MEMBER" ? "MEMBER" : "OWNER") as "OWNER" | "MEMBER";
     if (!userId || !workspaceId) return null;
+
+    // ✅ Always fetch current role from DB (so promotions apply instantly)
+    const membership = await prisma.membership.findFirst({
+      where: { userId, workspaceId }
+    });
+    if (!membership) return null;
+
+    const role = membership.role === "OWNER" ? "OWNER" : "MEMBER";
     return { userId, workspaceId, role };
   } catch {
     return null;

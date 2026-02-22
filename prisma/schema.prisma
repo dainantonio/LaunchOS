@@ -7,40 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  OWNER
-  MEMBER
-}
-
-enum PlanTier {
-  FREE
-  SOLO
-  TEAM
-  AGENCY
-}
-
-enum SourceType {
-  REVIEW
-  FORUM
-  COMPETITOR
-  NOTES
-}
-
-enum AssetType {
-  LANDING
-  PRODUCTHUNT
-  APPSTORE
-  SOCIAL
-  EMAIL
-}
-
-enum EventType {
-  VIEW
-  CTA
-  SIGNUP
-  GENERATION
-}
-
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
@@ -54,17 +20,38 @@ model Workspace {
   name        String
   createdAt   DateTime     @default(now())
   memberships Membership[]
+  invites     WorkspaceInvite[]
   plan        Plan?
   projects    Project[]
   events      Event[]
+
+  // BYOK AI settings (MVP: stored plaintext — encrypt later)
+  aiProvider  String       @default("MOCK")   // MOCK | OPENAI | ANTHROPIC
   aiKey       String?
+  aiModel     String?
+}
+
+model WorkspaceInvite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  email       String
+  role        String    @default("MEMBER")    // MEMBER
+  token       String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId])
+  @@index([email])
 }
 
 model Membership {
   id          String    @id @default(cuid())
   userId      String
   workspaceId String
-  role        Role      @default(OWNER)
+  role        String    @default("OWNER")     // OWNER | MEMBER
   createdAt   DateTime  @default(now())
 
   user        User      @relation(fields: [userId], references: [id])
@@ -76,7 +63,7 @@ model Membership {
 model Plan {
   id          String    @id @default(cuid())
   workspaceId String    @unique
-  tier        PlanTier  @default(FREE)
+  tier        String    @default("FREE")      // FREE | SOLO | TEAM | AGENCY
   status      String    @default("active")
   updatedAt   DateTime  @updatedAt
 
@@ -84,83 +71,83 @@ model Plan {
 }
 
 model Project {
-  id           String       @id @default(cuid())
-  workspaceId  String
-  name         String
-  nicheKeywords String
-  icpGuess     String
+  id             String       @id @default(cuid())
+  workspaceId    String
+  name           String
+  nicheKeywords  String
+  icpGuess       String
   competitorUrls String
-  createdAt    DateTime     @default(now())
+  createdAt      DateTime     @default(now())
 
-  workspace    Workspace    @relation(fields: [workspaceId], references: [id])
-  sources      Source[]
-  clusters     InsightCluster[]
-  positioning  Positioning?
-  assets       Asset[]
-  experiments  Experiment[]
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
+  sources        Source[]
+  clusters       InsightCluster[]
+  positioning    Positioning?
+  assets         Asset[]
+  experiments    Experiment[]
 }
 
 model Source {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
-  type      SourceType
+  type      String   // REVIEW | FORUM | COMPETITOR | NOTES
   title     String
   content   String
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 
-  project   Project    @relation(fields: [projectId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id])
 }
 
 model InsightCluster {
-  id            String   @id @default(cuid())
-  projectId     String
-  label         String
-  summary       String
-  who           String
-  severity      Int
-  frequency     Int
-  evidenceJson  String
+  id             String  @id @default(cuid())
+  projectId      String
+  label          String
+  summary        String
+  who            String
+  severity       Int
+  frequency      Int
+  evidenceJson   String
   workaroundsJson String
 
-  project       Project  @relation(fields: [projectId], references: [id])
+  project        Project @relation(fields: [projectId], references: [id])
 }
 
 model Positioning {
-  id            String   @id @default(cuid())
-  projectId     String   @unique
-  icpJson       String
-  problemStatement String
-  valueProp     String
-  whyNowJson    String
+  id                  String   @id @default(cuid())
+  projectId            String   @unique
+  icpJson             String
+  problemStatement    String
+  valueProp           String
+  whyNowJson          String
   differentiatorsJson String
-  objectionsJson String
-  optionsJson   String
-  recommendedAngle String
-  pricingJson   String
-  offerJson     String
-  updatedAt     DateTime @updatedAt
+  objectionsJson      String
+  optionsJson         String
+  recommendedAngle    String
+  pricingJson         String
+  offerJson           String
+  updatedAt           DateTime @updatedAt
 
-  project       Project  @relation(fields: [projectId], references: [id])
+  project             Project  @relation(fields: [projectId], references: [id])
 }
 
 model Asset {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   projectId String
-  type      AssetType
+  type      String   // LANDING | PRODUCTHUNT | APPSTORE | SOCIAL | EMAIL
   title     String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
-  project   Project   @relation(fields: [projectId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id])
   items     AssetItem[]
 }
 
 model AssetItem {
-  id        String  @id @default(cuid())
-  assetId   String
-  sectionKey String
+  id              String @id @default(cuid())
+  assetId         String
+  sectionKey      String
   contentMarkdown String
 
-  asset     Asset   @relation(fields: [assetId], references: [id])
+  asset           Asset  @relation(fields: [assetId], references: [id])
 }
 
 model Experiment {
@@ -175,39 +162,39 @@ model Experiment {
 }
 
 model Variant {
-  id           String   @id @default(cuid())
-  experimentId String
-  key          String
-  headline     String
-  subhead      String
-  cta          String
+  id                 String   @id @default(cuid())
+  experimentId       String
+  key                String   // A | B
+  headline           String
+  subhead            String
+  cta                String
   landingCopyMarkdown String
 
-  experiment   Experiment @relation(fields: [experimentId], references: [id])
-  events       Event[]
-  leads        Lead[]
+  experiment         Experiment @relation(fields: [experimentId], references: [id])
+  events             Event[]
+  leads              Lead[]
 }
 
 model Event {
-  id          String    @id @default(cuid())
-  workspaceId String
-  projectId   String?
+  id           String   @id @default(cuid())
+  workspaceId  String
+  projectId    String?
   experimentId String?
-  variantId   String?
-  type        EventType
-  createdAt   DateTime  @default(now())
-  metaJson    String?
+  variantId    String?
+  type         String   // VIEW | CTA | SIGNUP | GENERATION
+  createdAt    DateTime @default(now())
+  metaJson     String?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  variant     Variant?  @relation(fields: [variantId], references: [id])
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  variant      Variant?  @relation(fields: [variantId], references: [id])
 }
 
 model Lead {
-  id         String   @id @default(cuid())
-  projectId  String
-  variantId  String?
-  email      String
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  projectId String
+  variantId String?
+  email     String
+  createdAt DateTime @default(now())
 
-  variant    Variant? @relation(fields: [variantId], references: [id])
+  variant   Variant? @relation(fields: [variantId], references: [id])
 }

@@ -2,19 +2,75 @@
 
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { assertCanGenerate, assertCanCreateExperiment, recordGeneration } from "@/lib/entitlements";
+import { assertCanGenerate, assertCanCreateExperimentForWorkspace, recordGeneration } from "@/lib/entitlements";
 import {
+  GapFinderOut,
+  PositioningOut,
+  VariantsOut,
+  AssetOut,
+  PHOut,
+  AppStoreOut,
+  SocialScriptsOut,
+  EmailSeqOut,
   mockGapFinder,
   mockPositioning,
+  mockVariants,
   mockLandingAsset,
   mockProductHunt,
   mockAppStore,
   mockSocialScripts,
-  mockEmailSequence,
-  mockVariants
+  mockEmailSequence
 } from "@/lib/mockGen";
-import { AssetType } from "@prisma/client";
+import { generateTextWithProvider, parseJsonFromModelText } from "@/lib/ai/client";
+import {
+  gapFinderPrompt,
+  positioningPrompt,
+  variantsPrompt,
+  landingAssetPrompt,
+  productHuntPrompt,
+  appStorePrompt,
+  socialScriptsPrompt,
+  emailSeqPrompt
+} from "@/lib/ai/prompts";
+import { asAIProvider, type AIProvider, type AssetType } from "@/lib/constants";
 import { redirect } from "next/navigation";
+
+async function getAI(workspaceId: string) {
+  const ws = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  const provider = asAIProvider(ws?.aiProvider ?? "MOCK");
+  const apiKey = ws?.aiKey ?? "";
+  const model =
+    ws?.aiModel ??
+    (provider === "OPENAI" ? "gpt-4o-mini" : provider === "ANTHROPIC" ? "claude-sonnet-4-6" : "mock");
+
+  return { provider, apiKey, model };
+}
+
+async function generateJsonWithFallback<T>(opts: {
+  workspaceId: string;
+  prompt: string;
+  schema: { parse: (x: any) => T };
+  mock: () => T;
+}) {
+  const ai = await getAI(opts.workspaceId);
+
+  if (ai.provider !== "MOCK" && ai.apiKey) {
+    try {
+      const text = await generateTextWithProvider({
+        provider: ai.provider as AIProvider,
+        apiKey: ai.apiKey,
+        model: ai.model,
+        prompt: opts.prompt
+      });
+      const json = parseJsonFromModelText(text);
+      return opts.schema.parse(json);
+    } catch {
+      // fallback below
+    }
+  }
+
+  return opts.mock();
+}
 
 export async function generateInsightsAction(projectId: string) {
   const session = await requireSession();
@@ -28,15 +84,25 @@ export async function generateInsightsAction(projectId: string) {
 
   const sourcesText = project.sources.map(s => `# ${s.title}\n${s.content}`).join("\n\n");
 
-  const out = mockGapFinder({
-    projectName: project.name,
-    nicheKeywords: project.nicheKeywords,
-    icpGuess: project.icpGuess,
-    competitorUrls: project.competitorUrls,
-    sourcesText
+  const out = await generateJsonWithFallback({
+    workspaceId: session.workspaceId,
+    prompt: gapFinderPrompt({
+      nicheKeywords: project.nicheKeywords,
+      icpGuess: project.icpGuess,
+      competitorUrls: project.competitorUrls,
+      sourcesText
+    }),
+    schema: GapFinderOut,
+    mock: () =>
+      mockGapFinder({
+        projectName: project.name,
+        nicheKeywords: project.nicheKeywords,
+        icpGuess: project.icpGuess,
+        competitorUrls: project.competitorUrls,
+        sourcesText
+      })
   });
 
-  // Replace existing clusters for simplicity
   await prisma.insightCluster.deleteMany({ where: { projectId } });
 
   for (const c of out.pain_clusters) {
@@ -54,18 +120,7 @@ export async function generateInsightsAction(projectId: string) {
     });
   }
 
-  // Store wedge + tests into a synthetic "cluster" for demo? We'll store wedge into first cluster summary footer via events.
-  await prisma.event.create({
-    data: {
-      workspaceId: session.workspaceId,
-      projectId,
-      type: "GENERATION",
-      metaJson: JSON.stringify({ kind: "insights", wedge: out.wedge })
-    }
-  });
-
   await recordGeneration(session.workspaceId, projectId);
-
   redirect(`/app/projects/${projectId}?tab=research`);
 }
 
@@ -74,18 +129,28 @@ export async function generatePositioningAction(projectId: string) {
   await assertCanGenerate(session.workspaceId);
 
   const project = await prisma.project.findFirst({
-    where: { id: projectId, workspaceId: session.workspaceId },
-    include: { clusters: true }
+    where: { id: projectId, workspaceId: session.workspaceId }
   });
   if (!project) throw new Error("Not found.");
 
   const wedgeOneLiner = "A focused wedge that wins with a repeatable workflow.";
 
-  const out = mockPositioning({
-    projectName: project.name,
-    nicheKeywords: project.nicheKeywords,
-    icpGuess: project.icpGuess,
-    wedgeOneLiner
+  const out = await generateJsonWithFallback({
+    workspaceId: session.workspaceId,
+    prompt: positioningPrompt({
+      projectName: project.name,
+      nicheKeywords: project.nicheKeywords,
+      icpGuess: project.icpGuess,
+      wedgeOneLiner
+    }),
+    schema: PositioningOut,
+    mock: () =>
+      mockPositioning({
+        projectName: project.name,
+        nicheKeywords: project.nicheKeywords,
+        icpGuess: project.icpGuess,
+        wedgeOneLiner
+      })
   });
 
   await prisma.positioning.upsert({
@@ -118,7 +183,6 @@ export async function generatePositioningAction(projectId: string) {
   });
 
   await recordGeneration(session.workspaceId, projectId);
-
   redirect(`/app/projects/${projectId}?tab=positioning`);
 }
 
@@ -144,17 +208,35 @@ export async function generateAssetAction(projectId: string, type: AssetType) {
   let sections: { key: string; markdown: string }[] = [];
 
   if (type === "LANDING") {
-    const out = mockLandingAsset({
-      projectName: project.name,
-      nicheKeywords: project.nicheKeywords,
-      icp: pos.icp,
-      angle: pos.angle,
-      valueProp: pos.valueProp
+    const out = await generateJsonWithFallback({
+      workspaceId: session.workspaceId,
+      prompt: landingAssetPrompt({
+        projectName: project.name,
+        nicheKeywords: project.nicheKeywords,
+        icp: pos.icp,
+        angle: pos.angle,
+        valueProp: pos.valueProp
+      }),
+      schema: AssetOut,
+      mock: () => mockLandingAsset({
+        projectName: project.name,
+        nicheKeywords: project.nicheKeywords,
+        icp: pos.icp,
+        angle: pos.angle,
+        valueProp: pos.valueProp
+      })
     });
     title = "Landing Page Copy";
     sections = out.sections;
-  } else if (type === "PRODUCTHUNT") {
-    const out = mockProductHunt({ projectName: project.name, oneLiner: pos.valueProp });
+  }
+
+  if (type === "PRODUCTHUNT") {
+    const out = await generateJsonWithFallback({
+      workspaceId: session.workspaceId,
+      prompt: productHuntPrompt({ projectName: project.name, oneLiner: pos.valueProp }),
+      schema: PHOut,
+      mock: () => mockProductHunt({ projectName: project.name, oneLiner: pos.valueProp })
+    });
     title = "Product Hunt Listing";
     sections = [
       { key: "tagline", markdown: `**Tagline:** ${out.tagline}` },
@@ -164,8 +246,15 @@ export async function generateAssetAction(projectId: string, type: AssetType) {
       { key: "who", markdown: `**Who it's for:**\n- ${out.who_its_for.join("\n- ")}` },
       { key: "pricing", markdown: out.pricing_blurb }
     ];
-  } else if (type === "APPSTORE") {
-    const out = mockAppStore({ projectName: project.name });
+  }
+
+  if (type === "APPSTORE") {
+    const out = await generateJsonWithFallback({
+      workspaceId: session.workspaceId,
+      prompt: appStorePrompt({ projectName: project.name }),
+      schema: AppStoreOut,
+      mock: () => mockAppStore({ projectName: project.name })
+    });
     title = "App Store Listing";
     sections = [
       { key: "subtitle", markdown: `**Subtitle:** ${out.subtitle}` },
@@ -175,15 +264,29 @@ export async function generateAssetAction(projectId: string, type: AssetType) {
       { key: "keywords", markdown: `**Keywords:** ${out.keywords.join(", ")}` },
       { key: "privacy", markdown: out.privacy_blurb }
     ];
-  } else if (type === "SOCIAL") {
-    const out = mockSocialScripts({ projectName: project.name, niche: project.nicheKeywords, cta: "Create your first project" });
+  }
+
+  if (type === "SOCIAL") {
+    const out = await generateJsonWithFallback({
+      workspaceId: session.workspaceId,
+      prompt: socialScriptsPrompt({ projectName: project.name, icp: pos.icp, cta: "Start free" }),
+      schema: SocialScriptsOut,
+      mock: () => mockSocialScripts({ projectName: project.name, niche: project.nicheKeywords, cta: "Start free" })
+    });
     title = "Short-form Scripts (10)";
     sections = out.scripts.map((s, i) => ({
       key: `script_${i + 1}`,
       markdown: `### Script ${i + 1}\n**Hook:** ${s.hook}\n\n**Beats:**\n- ${s.beats.join("\n- ")}\n\n**On-screen:**\n- ${s.on_screen_text.join("\n- ")}\n\n**CTA:** ${s.cta}`
     }));
-  } else if (type === "EMAIL") {
-    const out = mockEmailSequence({ projectName: project.name, activationAction: "Create a project" });
+  }
+
+  if (type === "EMAIL") {
+    const out = await generateJsonWithFallback({
+      workspaceId: session.workspaceId,
+      prompt: emailSeqPrompt({ projectName: project.name, icp: pos.icp, activationAction: "Create a project" }),
+      schema: EmailSeqOut,
+      mock: () => mockEmailSequence({ projectName: project.name, activationAction: "Create a project" })
+    });
     title = "Email Sequence (5)";
     sections = out.emails.map((e) => ({
       key: `day_${e.day}`,
@@ -191,7 +294,6 @@ export async function generateAssetAction(projectId: string, type: AssetType) {
     }));
   }
 
-  // Replace existing asset of same type for simplicity
   await prisma.asset.deleteMany({ where: { projectId, type } });
 
   const asset = await prisma.asset.create({
@@ -200,13 +302,12 @@ export async function generateAssetAction(projectId: string, type: AssetType) {
   });
 
   await recordGeneration(session.workspaceId, projectId);
-
   redirect(`/app/projects/${projectId}?tab=assets&asset=${asset.id}`);
 }
 
 export async function createExperimentWithVariantsAction(projectId: string, formData: FormData) {
   const session = await requireSession();
-  await assertCanCreateExperiment(session.workspaceId, projectId);
+  await assertCanCreateExperimentForWorkspace(session.workspaceId, projectId);
   await assertCanGenerate(session.workspaceId);
 
   const name = String(formData.get("name") || "Messaging Test").trim();
@@ -220,7 +321,12 @@ export async function createExperimentWithVariantsAction(projectId: string, form
     data: { projectId, name, status: "running" }
   });
 
-  const out = mockVariants({ angleA, angleB });
+  const out = await generateJsonWithFallback({
+    workspaceId: session.workspaceId,
+    prompt: variantsPrompt({ angleA, angleB }),
+    schema: VariantsOut,
+    mock: () => mockVariants({ angleA, angleB })
+  });
 
   for (const v of out.variants) {
     await prisma.variant.create({
@@ -236,6 +342,5 @@ export async function createExperimentWithVariantsAction(projectId: string, form
   }
 
   await recordGeneration(session.workspaceId, projectId);
-
   redirect(`/app/projects/${projectId}?tab=experiments`);
 }

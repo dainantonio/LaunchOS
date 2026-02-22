@@ -6,6 +6,7 @@ import { addSourceAction } from "@/lib/actions/projects";
 import { generateInsightsAction, generatePositioningAction, generateAssetAction, createExperimentWithVariantsAction } from "@/lib/actions/generate";
 import { AssetType } from "@prisma/client";
 import { Markdown } from "@/components/markdown";
+import { CopyButton } from "@/components/copy-button";
 
 export default async function ProjectPage({ params, searchParams }: { params: { id: string }; searchParams: { tab?: string; asset?: string } }) {
   const session = await requireSession();
@@ -298,20 +299,6 @@ function AssetViewer({ assetId, assets }: { assetId: string; assets: any[] }) {
         ))}
       </div>
     </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  return (
-    <button
-      className="rounded-lg bg-white/5 px-2 py-1 text-xs text-zinc-200 ring-1 ring-white/10 hover:bg-white/10"
-      onClick={async () => {
-        await navigator.clipboard.writeText(text);
-      }}
-      type="button"
-    >
-      Copy
-    </button>
   );
 }
 

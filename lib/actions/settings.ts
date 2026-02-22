@@ -2,14 +2,15 @@
 
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { PlanTier } from "@prisma/client";
+import { asAIProvider, asPlanTier } from "@/lib/constants";
 import { redirect } from "next/navigation";
 
 export async function setPlanAction(formData: FormData) {
   const session = await requireSession();
   if (session.role !== "OWNER") throw new Error("FORBIDDEN");
 
-  const tier = String(formData.get("tier") || "FREE") as PlanTier;
+  const tier = asPlanTier(String(formData.get("tier") || "FREE"));
+
   await prisma.plan.upsert({
     where: { workspaceId: session.workspaceId },
     update: { tier },
@@ -19,14 +20,21 @@ export async function setPlanAction(formData: FormData) {
   redirect("/app");
 }
 
-export async function saveAIKeyAction(formData: FormData) {
+export async function saveAISettingsAction(formData: FormData) {
   const session = await requireSession();
   if (session.role !== "OWNER") throw new Error("FORBIDDEN");
 
+  const provider = asAIProvider(String(formData.get("aiProvider") || "MOCK"));
   const aiKey = String(formData.get("aiKey") || "").trim();
+  const aiModel = String(formData.get("aiModel") || "").trim();
+
   await prisma.workspace.update({
     where: { id: session.workspaceId },
-    data: { aiKey: aiKey || null }
+    data: {
+      aiProvider: provider,
+      aiKey: aiKey || null,
+      aiModel: aiModel || null
+    }
   });
 
   redirect("/app");
