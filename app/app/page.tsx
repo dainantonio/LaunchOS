@@ -8,7 +8,14 @@ import { getWorkspaceTier } from "@/lib/entitlements";
 import { LIMITS } from "@/lib/plan";
 import { setPlanAction, saveAISettingsAction } from "@/lib/actions/settings";
 import { createInviteAction, revokeInviteAction, resendInviteAction } from "@/lib/actions/invites";
-import { promoteMemberAction, removeMemberAction, leaveWorkspaceAction, switchWorkspaceAction } from "@/lib/actions/workspace";
+import {
+  promoteMemberAction,
+  demoteOwnerAction,
+  transferOwnershipAction,
+  removeMemberAction,
+  leaveWorkspaceAction,
+  switchWorkspaceAction
+} from "@/lib/actions/workspace";
 import { CopyButton } from "@/components/copy-button";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: { error?: string } }) {
@@ -43,8 +50,9 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
 
   const members = ws?.memberships ?? [];
   const pendingInvites = (ws?.invites ?? []).filter((inv) => !inv.acceptedAt);
-
   const ownerCount = members.filter((m) => m.role === "OWNER").length;
+
+  const myMembership = members.find((m) => m.userId === session.userId);
 
   return (
     <div className="space-y-6">
@@ -197,18 +205,64 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
             !canHaveTeam
               ? "Upgrade plan to TEAM/AGENCY to invite members."
               : isOwner
-              ? "Owner-only invites. Promote members to OWNER when needed."
+              ? "Owner-only invites. Transfer ownership safely."
               : "Only owners can invite or manage roles."
           }
         />
         <CardBody className="space-y-4">
+          {isOwner ? (
+            <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
+              <div className="text-sm font-semibold">Transfer ownership</div>
+              <div className="mt-1 text-sm text-zinc-300">
+                Promote a member to OWNER. Optionally demote yourself to MEMBER.
+              </div>
+
+              <form action={transferOwnershipAction} className="mt-3 space-y-3">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <label className="text-xs text-zinc-400">Target member</label>
+                    <select
+                      name="targetMembershipId"
+                      className="w-full rounded-xl bg-zinc-950/40 px-3 py-2 text-sm ring-1 ring-white/10"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>Select a member…</option>
+                      {members
+                        .filter((m) => m.userId !== session.userId)
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.user.email} ({m.role})
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10">
+                      <input type="checkbox" name="demoteSelf" />
+                      <span>Demote me after transfer</span>
+                    </label>
+                  </div>
+                </div>
+
+                <Button type="submit">Transfer ownership</Button>
+
+                <div className="text-xs text-zinc-500">
+                  Safety: you can’t demote the last owner or leave if you’re the last owner.
+                </div>
+              </form>
+            </div>
+          ) : null}
+
           <div className="rounded-2xl bg-white/5 p-4 ring-1 ring-white/10">
             <div className="text-sm font-semibold">Members</div>
             <div className="mt-2 space-y-2">
               {members.map((m) => {
                 const isSelf = m.userId === session.userId;
                 const canPromote = isOwner && m.role === "MEMBER";
-                const canRemove = isOwner && !isSelf; // server prevents last-owner removal
+                const canDemote = isOwner && m.role === "OWNER" && ownerCount > 1; // never demote last owner
+                const canRemove = isOwner && !isSelf; // server blocks last-owner remove
 
                 return (
                   <div key={m.id} className="flex items-center justify-between gap-3 rounded-xl bg-zinc-950/40 p-3 ring-1 ring-white/10">
@@ -220,7 +274,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge>Active</Badge>
 
                       {canPromote ? (
@@ -229,11 +283,15 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                         </form>
                       ) : null}
 
+                      {canDemote ? (
+                        <form action={demoteOwnerAction.bind(null, m.id)}>
+                          <Button type="submit" variant="ghost">Demote</Button>
+                        </form>
+                      ) : null}
+
                       {canRemove ? (
                         <form action={removeMemberAction.bind(null, m.id)}>
-                          <Button type="submit" variant="danger">
-                            Remove
-                          </Button>
+                          <Button type="submit" variant="danger">Remove</Button>
                         </form>
                       ) : null}
                     </div>
@@ -242,7 +300,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
               })}
             </div>
             <div className="mt-2 text-xs text-zinc-500">
-              Promotions take effect immediately. Removing the last OWNER is blocked server-side.
+              Promotions/demotions apply immediately (role is refreshed from DB on every request).
             </div>
           </div>
 
