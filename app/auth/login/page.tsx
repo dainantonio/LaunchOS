@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Container, Card, CardHeader, CardBody, Input, Button } from "@/components/ui";
+import { Container, Card, CardHeader, CardBody, Input } from "@/components/ui";
+import { SubmitButton } from "@/components/submit-button";
 import { loginAction } from "@/lib/actions/auth";
 
 export default function LoginPage({ searchParams }: { searchParams: { invite?: string; error?: string } }) {
@@ -35,7 +36,7 @@ export default function LoginPage({ searchParams }: { searchParams: { invite?: s
                   <label className="text-xs text-zinc-400">Password</label>
                   <Input name="password" type="password" placeholder="••••••••" required />
                 </div>
-                <Button className="w-full" type="submit">Continue</Button>
+                <SubmitButton className="w-full" pendingText="Signing in…">Continue</SubmitButton>
               </form>
 
               <div className="mt-4 text-sm text-zinc-300">

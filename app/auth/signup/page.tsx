@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Container, Card, CardHeader, CardBody, Input, Button } from "@/components/ui";
+import { Container, Card, CardHeader, CardBody, Input } from "@/components/ui";
+import { SubmitButton } from "@/components/submit-button";
 import { signupAction } from "@/lib/actions/auth";
 
 export default function SignupPage({ searchParams }: { searchParams: { invite?: string; error?: string } }) {
@@ -43,7 +44,7 @@ export default function SignupPage({ searchParams }: { searchParams: { invite?: 
                   <Input name="password" type="password" placeholder="Create a password" required />
                 </div>
 
-                <Button className="w-full" type="submit">{invite ? "Join workspace" : "Create account"}</Button>
+                <SubmitButton className="w-full" pendingText="Working…">{invite ? "Join workspace" : "Create account"}</SubmitButton>
               </form>
 
               <div className="mt-4 text-sm text-zinc-300">

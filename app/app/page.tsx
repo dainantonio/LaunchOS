@@ -17,6 +17,7 @@ import {
   switchWorkspaceAction
 } from "@/lib/actions/workspace";
 import { CopyButton } from "@/components/copy-button";
+import { SubmitButton } from "@/components/submit-button";
 import { ErrorToast } from "@/components/error-toast";
 
 export default async function DashboardPage({ searchParams }: { searchParams?: { error?: string } }) {
@@ -159,7 +160,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                   </label>
                 ))}
               </div>
-              <Button type="submit">Update plan</Button>
+              <SubmitButton pendingText="Updating…">Update plan</SubmitButton>
               <div className="text-xs text-zinc-400">Entitlements are enforced server-side.</div>
             </form>
 
@@ -242,7 +243,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                   </div>
                 </div>
 
-                <Button type="submit">Transfer ownership</Button>
+                <SubmitButton pendingText="Transferring…">Transfer ownership</SubmitButton>
 
                 <div className="text-xs text-zinc-500">
                   Safety: you can’t demote the last owner or leave if you’re the last owner.
@@ -275,19 +276,19 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
 
                       {canPromote ? (
                         <form action={promoteMemberAction.bind(null, m.id)}>
-                          <Button type="submit">Promote</Button>
+                          <SubmitButton pendingText="Promoting…">Promote</SubmitButton>
                         </form>
                       ) : null}
 
                       {canDemote ? (
                         <form action={demoteOwnerAction.bind(null, m.id)}>
-                          <Button type="submit" variant="ghost">Demote</Button>
+                          <SubmitButton variant="ghost" pendingText="Demoting…">Demote</SubmitButton>
                         </form>
                       ) : null}
 
                       {canRemove ? (
                         <form action={removeMemberAction.bind(null, m.id)}>
-                          <Button type="submit" variant="danger">Remove</Button>
+                          <SubmitButton variant="danger" pendingText="Removing…">Remove</SubmitButton>
                         </form>
                       ) : null}
                     </div>
@@ -305,7 +306,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
               <div className="text-sm font-semibold">Invite a member</div>
               <form action={createInviteAction} className="mt-3 flex flex-col gap-2 md:flex-row">
                 <Input name="email" type="email" placeholder="teammate@email.com" required />
-                <Button type="submit">Create invite</Button>
+                <SubmitButton pendingText="Creating…">Create invite</SubmitButton>
               </form>
               <div className="mt-2 text-xs text-zinc-400">MVP uses copyable invite links (no email sending yet).</div>
 
@@ -325,10 +326,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: {
                         </div>
                         <div className="flex items-center gap-2">
                           <form action={resendInviteAction.bind(null, inv.id)}>
-                            <Button type="submit" variant="ghost">Resend</Button>
+                            <SubmitButton variant="ghost" pendingText="Resending…">Resend</SubmitButton>
                           </form>
                           <form action={revokeInviteAction.bind(null, inv.id)}>
-                            <Button type="submit" variant="danger">Revoke</Button>
+                            <SubmitButton variant="danger" pendingText="Revoking…">Revoke</SubmitButton>
                           </form>
                         </div>
                       </div>
