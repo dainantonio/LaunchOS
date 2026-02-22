@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/db";
 import { LIMITS } from "@/lib/plan";
-import { PlanTier } from "@prisma/client";
+import { asPlanTier, type PlanTier } from "@/lib/constants";
 
 export async function getWorkspaceTier(workspaceId: string): Promise<PlanTier> {
   const plan = await prisma.plan.findUnique({ where: { workspaceId } });
-  return plan?.tier ?? "FREE";
+  return asPlanTier(plan?.tier);
 }
 
 function monthBounds(d = new Date()) {
@@ -17,9 +17,7 @@ export async function assertCanCreateProject(workspaceId: string) {
   const tier = await getWorkspaceTier(workspaceId);
   const limits = LIMITS[tier];
   const count = await prisma.project.count({ where: { workspaceId } });
-  if (count >= limits.maxProjects) {
-    throw new Error(`PLAN_LIMIT: You have reached your project limit for ${tier}.`);
-  }
+  if (count >= limits.maxProjects) throw new Error(`PLAN_LIMIT: You have reached your project limit for ${tier}.`);
 }
 
 export async function assertCanGenerate(workspaceId: string) {
@@ -29,26 +27,26 @@ export async function assertCanGenerate(workspaceId: string) {
   const gens = await prisma.event.count({
     where: { workspaceId, type: "GENERATION", createdAt: { gte: start, lt: end } }
   });
-  if (gens >= limits.maxGenerationsPerMonth) {
-    throw new Error(`PLAN_LIMIT: You have reached your monthly generation limit for ${tier}.`);
-  }
+  if (gens >= limits.maxGenerationsPerMonth) throw new Error(`PLAN_LIMIT: You have reached your monthly generation limit for ${tier}.`);
 }
 
-export async function assertCanCreateExperiment(workspaceId: string, projectId: string) {
+export async function assertCanCreateExperimentForWorkspace(workspaceId: string, projectId: string) {
   const tier = await getWorkspaceTier(workspaceId);
   const limits = LIMITS[tier];
   const count = await prisma.experiment.count({ where: { projectId } });
-  if (count >= limits.maxExperiments) {
-    throw new Error(`PLAN_LIMIT: You have reached your experiment limit for ${tier}.`);
+  if (count >= limits.maxExperiments) throw new Error(`PLAN_LIMIT: You have reached your experiment limit for ${tier}.`);
+}
+
+export async function assertCanInviteMember(workspaceId: string) {
+  const tier = await getWorkspaceTier(workspaceId);
+  const limits = LIMITS[tier];
+
+  const members = await prisma.membership.count({ where: { workspaceId } });
+  if (members >= limits.maxMembers) {
+    throw new Error(`PLAN_LIMIT: Member limit reached for .`);
   }
 }
 
 export async function recordGeneration(workspaceId: string, projectId?: string) {
-  await prisma.event.create({
-    data: {
-      workspaceId,
-      projectId,
-      type: "GENERATION"
-    }
-  });
+  await prisma.event.create({ data: { workspaceId, projectId, type: "GENERATION" } });
 }

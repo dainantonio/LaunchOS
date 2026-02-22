@@ -1,4 +1,4 @@
-import { PlanTier } from "@prisma/client";
+import type { PlanTier } from "@/lib/constants";
 
 export type Limits = {
   maxProjects: number;
