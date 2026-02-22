@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/db";
 import { requireSession } from "@/lib/auth";
-import { Card, CardBody, CardHeader, Badge, Input } from "@/components/ui";
+import { Card, CardBody, CardHeader, Badge, Input, Button } from "@/components/ui";
 import { getWorkspaceTier } from "@/lib/entitlements";
 import { LIMITS } from "@/lib/plan";
 import { setPlanAction, saveAISettingsAction } from "@/lib/actions/settings";
@@ -67,9 +67,7 @@ export default async function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link href="/app/projects/new">
-            <SubmitButton pendingText="Opening…">New Project</SubmitButton>
-          </Link>
+          <Link href="/app/projects/new"><Button>New Project</Button></Link>
         </div>
       </div>
 

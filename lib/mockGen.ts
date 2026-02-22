@@ -380,28 +380,43 @@ Then paste 3–5 real customer quotes and generate insights.`, cta: input.activa
 }
 
 export function mockVariants(input: { angleA: string; angleB: string; }) {
+  const aHeadline = input.angleA || "Stop losing margin.";
+  const bHeadline = input.angleB || "Launch in a weekend.";
+
   return VariantsOut.parse({
     variants: [
-      { key: "A", headline: input.angleA || "Stop losing margin.", subhead: "Standardize pricing and book better work.", cta: "Get Started", landing_copy_markdown: "### One flow from signal to launch.
+      {
+        key: "A",
+        headline: aHeadline,
+        subhead: "Standardize pricing and book better work.",
+        cta: "Get Started",
+        landing_copy_markdown: `### One flow from signal to launch.
 
 - Research
 - Positioning
 - Assets
 
-**Get your first kit today.**" },
-      { key: "B", headline: input.angleB || "Launch in a weekend.", subhead: "Generate copy and run experiments fast.", cta: "Create Project", landing_copy_markdown: "### Ship with clarity.
+**Get your first kit today.**`
+      },
+      {
+        key: "B",
+        headline: bHeadline,
+        subhead: "Generate copy and run experiments fast.",
+        cta: "Create Project",
+        landing_copy_markdown: `### Ship with clarity.
 
 - One wedge
-- One audience
-- One CTA
+- Two variants
+- Track signups
 
-**Create your first project.**" }
+**Launch in a weekend.**`
+      }
     ],
     success_metric: "signup_rate",
     run_instructions: [
-      "Split traffic 50/50.",
-      "Run until each variant has at least N=100 views (or 7 days).",
-      "Pick winner by signup_rate; use CTA_rate as secondary."
+      "Send equal traffic to both variants for 48–72 hours.",
+      "Pick the winner by signup rate; iterate headline/subhead weekly."
     ]
   });
 }
+
