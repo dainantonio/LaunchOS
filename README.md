@@ -10,7 +10,8 @@ It’s built to ship fast, test messages early, and keep a tight loop between re
 
 A production-grade redesign plan that evolves LaunchOS from MVP into a multi-agent AI Founder Operating System is available here:
 
-- `docs/ai-founder-os-production-plan.md` (recommended, implementation-focused v3)
+- `docs/agentic-autonomous-refactor-plan.md` (recommended, autonomous multi-agent v4)
+- `docs/ai-founder-os-production-plan.md` (implementation-focused v3)
 - `docs/ai-founder-os-system-design.md` (earlier design reference)
 
 It includes:
