@@ -6,6 +6,23 @@ It’s built to ship fast, test messages early, and keep a tight loop between re
 
 ---
 
+## AI Founder OS redesign
+
+A production-grade redesign plan that evolves LaunchOS from MVP into a multi-agent AI Founder Operating System is available here:
+
+- `docs/ai-founder-os-system-design.md`
+
+It includes:
+- refactored system architecture
+- multi-agent orchestration design
+- recommended tech stack
+- product roadmap
+- database schema outline
+- mission-control UI layout
+- implementation next steps
+
+---
+
 ## What LaunchOS does
 
 ### ✅ Research → Gap Finder
