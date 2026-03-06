@@ -6,6 +6,24 @@ It’s built to ship fast, test messages early, and keep a tight loop between re
 
 ---
 
+## AI Founder OS redesign
+
+A production-grade redesign plan that evolves LaunchOS from MVP into a multi-agent AI Founder Operating System is available here:
+
+- `docs/ai-founder-os-production-plan.md` (recommended, implementation-focused v3)
+- `docs/ai-founder-os-system-design.md` (earlier design reference)
+
+It includes:
+- refactored system architecture
+- multi-agent orchestration design
+- recommended tech stack
+- product roadmap
+- database schema outline
+- mission-control UI layout
+- implementation next steps
+
+---
+
 ## What LaunchOS does
 
 ### ✅ Research → Gap Finder
@@ -61,3 +79,58 @@ Mock billing tiers with hard limits enforced server-side:
 ### 1) Install dependencies
 ```bash
 npm install
+```
+
+### 2) Configure environment variables
+```bash
+cp .env.example .env
+```
+
+Then update `.env` and set:
+- `SESSION_SECRET` to any long random string.
+
+### 3) Generate Prisma client
+```bash
+npm run prisma:generate
+```
+
+### 4) Run database migrations
+```bash
+npm run prisma:migrate
+```
+
+### 5) (Optional) Seed sample data
+```bash
+npm run db:seed
+```
+
+### 6) Start development server
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000`.
+
+---
+
+## Preview in GitHub Codespaces
+
+1. Start the app:
+   ```bash
+   npm run dev
+   ```
+2. Open the **Ports** panel in Codespaces.
+3. Find forwarded port `3000` and click **Open in Browser**.
+4. Alternatively, open the forwarded URL ending in `-3000.app.github.dev`.
+
+---
+
+## Common commands
+
+```bash
+npm run dev           # local dev
+npm run build         # production build
+npm run start         # run production server
+npm run lint          # lint (requires ESLint setup)
+npm run prisma:studio # browse local DB
+```
