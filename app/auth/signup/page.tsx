@@ -2,7 +2,15 @@ import Link from "next/link";
 import { Container, Card, CardHeader, CardBody, Input, Button } from "@/components/ui";
 import { signupAction } from "@/lib/actions/auth";
 
-export default function SignupPage() {
+type SignupPageProps = {
+  searchParams?: {
+    error?: string;
+  };
+};
+
+export default function SignupPage({ searchParams }: SignupPageProps) {
+  const error = searchParams?.error;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900">
       <Container className="py-10">
@@ -12,6 +20,12 @@ export default function SignupPage() {
           <Card>
             <CardHeader title="Start free" subtitle="Create a workspace, then generate your first launch kit." />
             <CardBody>
+              {error ? (
+                <div className="mb-3 rounded-md border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+                  {decodeURIComponent(error)}
+                </div>
+              ) : null}
+
               <form action={signupAction} className="space-y-3">
                 <div>
                   <label className="text-xs text-zinc-400">Workspace name</label>
