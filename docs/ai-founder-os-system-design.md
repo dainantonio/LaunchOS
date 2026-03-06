@@ -1,286 +1,334 @@
-# LaunchOS AI Founder OS — Production System Design
+# LaunchOS AI Founder OS — Production Blueprint (v2)
+
+LaunchOS is redesigned as an **Agentic Founder Operating System** that transforms one user goal into a launch-ready, growth-ready business.
+
+Unlike app generators, LaunchOS orchestrates business strategy, product delivery, revenue ops, and continuous optimization through coordinated specialist agents.
+
+---
 
 ## 1) Refactored System Architecture
 
-LaunchOS evolves from a single-flow generation app into a **multi-agent business operating system** with explicit bounded contexts and event-driven orchestration.
+### 1.1 Architecture principles
 
-### A. Layered architecture
+1. **Goal-first, not app-first**: all execution starts from business outcomes (e.g., first revenue in 14 days).
+2. **Multi-agent by default**: planning, delivery, QA, growth, and ops are separate cooperating agents.
+3. **Event-driven execution**: every action emits immutable events for traceability and replay.
+4. **Human-governed autonomy**: policy engine controls what can run autonomously.
+5. **Continuous improvement loop**: monitor signals create new optimization work automatically.
 
-1. **Experience Layer (Mission Control UI)**
-   - Idea intake, objective configuration, confidence/constraints input.
-   - Real-time agent activity stream and approvals queue.
-   - Build preview (web/app/API), analytics command center, growth cockpit.
+### 1.2 Layered platform model
 
-2. **Orchestration Layer (Agent Runtime + Workflow Engine)**
-   - Goal-to-plan decomposition.
-   - Agent task routing, retry policies, compensation, and guardrails.
-   - Shared memory read/write policies and execution provenance.
+```text
+[Mission Control UI]
+    ↓
+[API Gateway + Auth + Tenancy]
+    ↓
+[Agent Orchestrator + Workflow Engine + Policy Engine]
+    ↓
+[Domain Services: Planning | Build | QA | Growth | Ops | Monitor]
+    ↓
+[Data Plane: Postgres | Vector Memory | Object Storage | Event Store]
+    ↓
+[Runtime: Workers | CI/CD | Observability | Integrations]
+```
 
-3. **Capability Layer (Domain Services)**
-   - Market intelligence, product planning, code generation, QA, deploy, growth, CRM operations.
-   - Connectors to Stripe, email, ads, SEO tools, analytics, CRM, and support tools.
+### 1.3 Bounded contexts
 
-4. **Data + Knowledge Layer**
-   - Postgres (transactional state).
-   - Vector store (long-term semantic memory).
-   - Object storage (artifacts: specs, assets, build outputs).
-   - Event store (append-only audit + replay).
+- **Identity & Tenancy**: users, workspaces, roles, plans, limits.
+- **Goal Intake**: idea capture, constraints, budget, timeline, risk appetite.
+- **Strategy**: market validation, business model, offer design, GTM strategy.
+- **Product Delivery**: architecture, code generation, infra, deployment.
+- **Revenue & Growth**: pricing tests, campaigns, SEO, conversion funnels.
+- **Operations**: CRM automations, service workflows, notifications, support.
+- **Intelligence**: KPI tracking, anomaly detection, recommendation engine.
 
-5. **Delivery + Runtime Layer**
-   - Containerized services + queue workers.
-   - Serverless jobs for burst workloads.
-   - Observability stack (metrics, logs, traces, eval dashboards).
+### 1.4 End-to-end lifecycle
 
-### B. Core bounded contexts
-
-- **Identity & Tenancy**: users, workspaces, roles, usage limits.
-- **Goal Intake**: business objective, constraints, vertical selection.
-- **Planning**: milestones, dependencies, acceptance criteria, budgets.
-- **Build System**: code generation, infra templates, deploy pipelines.
-- **Business Ops**: offers, pricing, CRM, campaigns, automations.
-- **Insights**: KPI telemetry, diagnostics, recommendations.
-
-### C. High-level flow
-
-`Goal Submitted → Founder Plan → Multi-Agent Execution Graph → QA Gates → Deployment → Growth Activation → Continuous Monitoring → Autonomous Improvement Proposals`
+`Goal Submitted → Founder Brief → Task DAG Generated → Parallel Agent Execution → QA Gates → Deploy → Growth Activation → Monitor Signals → Optimization Backlog`
 
 ---
 
 ## 2) Agent Orchestration Design
 
-### A. Agent topology
+### 2.1 Agent roster (required)
 
-- **Founder Agent (Conductor)**
-  - Converts user intent into business objective tree, success metrics, and operating constraints.
-- **Product Architect Agent**
-  - Produces target architecture, roadmap, milestones, API contracts.
-- **Builder Agent**
-  - Generates app/services, infrastructure configs, DB migrations, integrations.
-- **UX Agent**
-  - Produces IA, user flows, UI specs, component decisions, copy variants.
-- **QA Agent**
-  - Creates/executes tests, validates acceptance criteria, enforces release gate.
-- **Growth Agent**
-  - Launches positioning, channels, content pipeline, offer experiments.
-- **Operations Agent**
-  - Configures automations, CRM workflows, notifications, support playbooks.
-- **Monitor Agent**
-  - Tracks KPI drift/anomalies, opens optimization tasks, suggests expansions.
+1. **Founder Agent**
+   - Converts raw idea into strategy brief, success criteria, and operating constraints.
+2. **Product Architect Agent**
+   - Defines technical blueprint, feature roadmap, domain boundaries, API contracts.
+3. **Builder Agent**
+   - Generates frontend/backend/db/auth/payments/integrations and deploy configs.
+4. **UX Agent**
+   - Designs user journeys, IA, UX copy, accessibility requirements, interaction states.
+5. **QA Agent**
+   - Generates and executes test suites; blocks unsafe releases.
+6. **Growth Agent**
+   - Produces launch assets, channel plan, campaign variants, and experiment schedule.
+7. **Operations Agent**
+   - Builds CRM workflows, onboarding automations, support playbooks, notifications.
+8. **Monitor Agent**
+   - Tracks KPI movement, identifies drop-offs, proposes improvements and expansions.
 
-### B. Shared memory model
+### 2.2 Shared memory architecture
 
-- **Working Memory**: per-run context (objective, plan, active blockers).
-- **Long-Term Business Memory**: persistent strategy, customer signals, brand voice.
-- **Artifact Memory**: specs, code snapshots, campaign assets, experiments.
-- **Decision Log**: rationale, alternatives, confidence score, owner agent.
+- **Working Memory** (run-scoped): current goal, active tasks, blockers, temporary assumptions.
+- **Business Memory** (workspace-scoped): ICPs, offers, pricing history, positioning narratives.
+- **Artifact Memory**: generated code, copy assets, diagrams, deployment manifests, test reports.
+- **Decision Ledger**: rationale, confidence score, alternatives considered, approving actor.
 
-### C. Coordination protocol
+### 2.3 Execution protocol
 
-- All tasks represented as a DAG (`TaskNode`) with:
-  - owner agent
-  - inputs/outputs schema
-  - dependencies
-  - quality gates
-  - rollback strategy
-- Event bus topics:
-  - `goal.created`
-  - `plan.approved`
-  - `task.started|completed|failed`
-  - `qa.gate.passed|blocked`
-  - `deploy.completed`
-  - `monitor.alert`
-  - `improvement.proposed`
+Every job is represented as a `TaskNode` in a DAG with:
 
-### D. Autonomy controls
+- `task_id`, `goal_id`, `owner_agent`, `risk_class`
+- `inputs_schema`, `outputs_schema`
+- `depends_on[]`
+- `quality_gates[]`
+- `rollback_plan`
+- `status`: `queued | running | blocked | done | failed`
 
-- **Policy engine** by workspace tier:
-  - fully autonomous / approval-required / advisory-only modes.
+### 2.4 Event taxonomy
+
+- `goal.created`
+- `brief.generated`
+- `plan.composed`
+- `task.started`
+- `task.completed`
+- `task.failed`
+- `qa.gate.failed`
+- `qa.gate.passed`
+- `deployment.promoted`
+- `monitor.alert.created`
+- `improvement.task.proposed`
+
+### 2.5 Autonomy and safety controls
+
+- **Modes**: Advisory, Semi-Autonomous, Fully Autonomous.
 - **Risk classes**:
-  - low-risk (copy edits), medium-risk (pricing update), high-risk (prod schema changes).
-- **Human-in-the-loop points**:
-  - legal-sensitive claims, payment policy changes, irreversible data ops.
+  - L1: low-risk (copy, UI text, non-critical experiments)
+  - L2: medium-risk (pricing, workflow changes)
+  - L3: high-risk (schema/data migrations, production infra changes)
+- **Mandatory approvals**:
+  - legal/compliance sensitive content
+  - irreversible data operations
+  - payment policy and billing changes
 
 ---
 
 ## 3) Recommended Tech Stack
 
-### Frontend
+### 3.1 Frontend (Mission Control)
 
 - Next.js (App Router) + React + TypeScript
-- Tailwind + shadcn/ui (or equivalent component system)
-- Realtime state via server events/websockets for agent activity stream
-- Charting via Recharts/Visx for KPI and funnel visualization
+- Tailwind CSS + component system (shadcn/ui-style primitives)
+- SSE/WebSocket stream for live agent activity
+- Recharts/Visx for funnels, MRR, conversion and cohort charts
 
-### Backend & orchestration
+### 3.2 Backend and orchestration
 
-- **API gateway**: Next.js route handlers or Fastify (Node)
-- **Agent runtime**: Python services for planning/reasoning heavy tasks
-- **Workflow engine**: Temporal or BullMQ + Redis (start with BullMQ, upgrade path to Temporal)
-- **Queue**: Redis streams or RabbitMQ
-- **Event bus**: Kafka (scale) or Postgres outbox pattern (early stage)
+- Node API gateway (Next route handlers / Fastify)
+- Python agent runtime services for planning-heavy tasks
+- Workflow engine:
+  - Start: BullMQ + Redis
+  - Scale path: Temporal for durable long-running workflows
+- Eventing:
+  - Early stage: Postgres outbox + worker dispatcher
+  - Scale stage: Kafka/NATS
 
-### Data
+### 3.3 Data and storage
 
-- Postgres (primary relational store)
-- Supabase (managed Postgres + auth/storage option) or Neon + custom auth
-- Vector DB: pgvector (initial) → dedicated vector store as scale grows
-- Object storage: S3-compatible bucket for artifacts
+- Postgres (primary transactional DB)
+- pgvector for semantic memory (initial)
+- S3-compatible object storage for artifacts/assets
+- Optional Supabase stack for managed Postgres/auth/storage acceleration
 
-### DevOps
+### 3.4 DevOps and reliability
 
-- Docker + Terraform for infra reproducibility
-- Deploy: Vercel (frontend) + Fly/Render/ECS for workers and Python services
+- Dockerized services + queue workers
+- CI/CD with preview/staging/prod promotion gates
 - Observability: OpenTelemetry + Grafana + Sentry
-- Feature flags: PostHog or LaunchDarkly
+- Feature flags + product analytics: PostHog
 
-### AI providers and model strategy
+### 3.5 AI model strategy
 
-- Multi-model routing:
-  - planning/reasoning model
-  - coding-optimized model
-  - summarization/cost-efficient model
-- Provider abstraction layer with fallback + token budget policies.
+- Provider abstraction layer with failover routing
+- Model classes:
+  - strategy/reasoning
+  - coding and refactoring
+  - low-cost summarization/extraction
+- Budget controls: token caps, per-task cost policy, ROI-aware generation
 
 ---
 
-## 4) Product Roadmap (90-day execution)
+## 4) Product Roadmap
 
-### Phase 1 (Weeks 1–3): Foundation
+### Phase 0 (Week 0–1): Platform hardening
 
-- Introduce explicit multi-agent task graph execution.
-- Add shared memory primitives (working + artifact + decisions).
-- Build Mission Control dashboard (goal, progress, agent activity).
+- Fix current build/lint blockers
+- establish quality baseline and CI required checks
+- define architecture decision records (ADRs)
 
-### Phase 2 (Weeks 4–6): End-to-end business generation
+### Phase 1 (Week 2–4): Agent runtime foundation
 
-- Goal → strategy → product architecture → MVP code skeleton.
-- Auto-generate: landing page, pricing, checkout flow, CRM pipeline.
-- Integrate baseline analytics and conversion events.
+- Implement task DAG orchestration
+- Add shared memory primitives and decision ledger
+- Ship Agent Console (live activity + task states)
 
-### Phase 3 (Weeks 7–9): Autonomous operations
+### Phase 2 (Week 5–7): Idea → business generation
 
-- QA agent gates (unit/e2e/lint/security checks).
-- One-click deploy pipeline with rollback.
-- Growth agent campaign generation + experiment loop.
+- Generate strategy brief (market validation, revenue model, offer)
+- Generate technical blueprint and MVP backlog
+- Generate launch assets (landing, pricing, onboarding, CRM pipeline)
 
-### Phase 4 (Weeks 10–12): Vertical kits + intelligence
+### Phase 3 (Week 8–10): Autonomous QA + Deploy
 
-- Ship NotaryOS, Local Service Kit, Faith Creator Kit.
-- Add monitor-led weekly optimization report and expansion suggestions.
-- Introduce confidence scoring and autonomy policy controls.
+- QA agent release gates (unit/integration/e2e/security)
+- one-click deployment + rollback
+- deployment audit timeline in Mission Control
+
+### Phase 4 (Week 11–12): Growth + Intelligence
+
+- Growth agent experiments (SEO/content/ad copy/channel variants)
+- Monitor agent anomaly detection and weekly optimization reports
+- Expansion suggestions engine (new features/products/services)
+
+### Vertical Kit rollout
+
+- **NotaryOS**
+- **Local Service Business Kit**
+- **Faith Creator Kit**
+- **Family Management Kit**
+- **Education/Kids Learning Kit**
 
 ---
 
 ## 5) Database Schema Outline
 
-### Core entities
+### 5.1 Core tables
 
 - `workspaces`
-- `users`
 - `workspace_members`
 - `goals`
-- `business_plans`
+- `founder_briefs`
+- `business_models`
 - `agent_runs`
-- `tasks`
-- `task_dependencies`
+- `task_nodes`
+- `task_edges`
 - `artifacts`
 - `deployments`
-- `kpi_metrics`
 - `campaigns`
 - `experiments`
 - `crm_contacts`
 - `automations`
+- `kpi_metrics`
 - `monitor_alerts`
 - `improvement_recommendations`
+- `event_outbox`
+- `decision_ledger`
 
-### Minimal table specs
+### 5.2 Example column-level outline
 
 - **goals**
-  - `id`, `workspace_id`, `title`, `problem_statement`, `target_customer`, `constraints_json`, `status`
+  - `id`, `workspace_id`, `title`, `idea_text`, `target_market`, `constraints_json`, `status`, `created_at`
 - **agent_runs**
-  - `id`, `goal_id`, `agent_type`, `input_json`, `output_json`, `status`, `started_at`, `ended_at`
-- **tasks**
-  - `id`, `goal_id`, `owner_agent`, `type`, `priority`, `risk_level`, `state`, `acceptance_criteria_json`
+  - `id`, `goal_id`, `agent_type`, `input_json`, `output_json`, `status`, `cost_usd`, `started_at`, `ended_at`
+- **task_nodes**
+  - `id`, `goal_id`, `owner_agent`, `task_type`, `risk_class`, `priority`, `state`, `acceptance_criteria_json`, `retry_count`
 - **artifacts**
-  - `id`, `goal_id`, `task_id`, `kind`, `uri`, `version`, `checksum`, `metadata_json`
+  - `id`, `goal_id`, `task_id`, `artifact_type`, `storage_uri`, `version`, `checksum`, `metadata_json`
 - **kpi_metrics**
-  - `id`, `workspace_id`, `metric_key`, `metric_value`, `period_start`, `period_end`, `source`
-- **improvement_recommendations**
-  - `id`, `workspace_id`, `trigger_type`, `recommendation`, `estimated_impact`, `confidence`, `status`
+  - `id`, `workspace_id`, `metric_key`, `metric_value`, `dimension_json`, `period_start`, `period_end`, `source`
+- **event_outbox**
+  - `id`, `topic`, `payload_json`, `published_at`, `attempt_count`, `status`
+
+### 5.3 Non-functional requirements
+
+- Row-level tenancy isolation
+- append-only event and decision log
+- idempotent consumers on all asynchronous topics
+- point-in-time restore + audit-ready traceability
 
 ---
 
-## 6) UI Layout (Mission Control)
+## 6) UI Layout (Mission Control Dashboard)
 
-### Primary navigation
+### 6.1 Navigation model
 
-1. **Command Center** (default)
-2. **Agent Console**
-3. **Product Studio**
-4. **Growth Engine**
-5. **Operations**
-6. **Analytics & Intelligence**
-7. **Settings / Autonomy Policies**
+1. **Command Center** (goal intake + run control)
+2. **Agents** (status, handoffs, logs)
+3. **Product Studio** (architecture, code artifacts, preview)
+4. **Growth Engine** (campaigns, SEO, experiments)
+5. **Operations Hub** (CRM, automations, notifications)
+6. **Intelligence** (KPIs, alerts, recommendations)
+7. **Governance** (autonomy policy, approvals, audit log)
 
-### Command Center layout
+### 6.2 Command Center layout
 
-- **Top bar**: workspace, objective selector, autonomy mode, run controls.
-- **Left column**: idea input + constraints + vertical kit selection.
-- **Center**: execution timeline (task DAG, current blockers, QA gates).
-- **Right column**: live agent feed (messages, confidence, handoffs).
-- **Bottom panel**: generated assets preview (website/app/workflows).
+- **Top bar**: current workspace, goal selector, autonomy mode, run state, emergency stop.
+- **Left pane**: idea input wizard (goal, target customer, budget, deadline, vertical kit).
+- **Center pane**: execution graph (task DAG + QA gates + blockers).
+- **Right pane**: live agent stream (who is doing what + confidence + pending approvals).
+- **Bottom pane**: generated business assets preview (site/app/workflows/CRM/analytics).
 
-### UX principles
+### 6.3 UX requirements
 
-- Show what agents are doing, why, and with what confidence.
-- Keep reversibility obvious (rollback, audit trail, diffs).
-- Separate recommendations from executed changes.
+- "Why this action" transparency on all agent outputs
+- one-click diff + rollback for every material change
+- confidence and risk badges per action
+- explicit separation: **recommendation** vs **executed change**
 
 ---
 
 ## 7) Next Build Steps (Implementation-ready)
 
-1. **Create orchestration contracts first**
-   - Add `AgentType`, `TaskNode`, `RunState`, `RiskLevel` shared types.
-   - Implement event envelope + idempotency keys.
+### Sprint A — Refactor foundation
 
-2. **Refactor backend into modules**
-   - `/core/orchestrator`
-   - `/core/memory`
-   - `/domains/{planning,build,growth,ops,monitor}`
-   - `/integrations/{payments,crm,analytics,email}`
+1. Introduce shared contracts: `AgentType`, `TaskNode`, `RunState`, `RiskClass`, `EventEnvelope`.
+2. Create module boundaries:
+   - `core/orchestrator`
+   - `core/policy`
+   - `core/memory`
+   - `domains/{founder,architect,builder,ux,qa,growth,ops,monitor}`
+3. Add outbox pattern and event dispatcher worker.
 
-3. **Upgrade data model**
-   - Add tables for goals/tasks/agent_runs/artifacts/monitor_alerts.
-   - Introduce outbox table for reliable event publication.
+### Sprint B — Runtime and UI
 
-4. **Build Agent Console UI**
-   - Real-time task status, per-agent logs, gate outcomes.
-   - Artifact diffing + approval actions.
+4. Build Agent Console with live updates (SSE first).
+5. Implement approval queue and risk-based action gating.
+6. Add artifact explorer (specs, code outputs, marketing assets, test reports).
 
-5. **Implement QA/Deploy gates**
-   - Mandatory lint/test/build checks per build task.
-   - Environment promotion strategy: preview → staging → production.
+### Sprint C — Autonomous delivery
 
-6. **Ship vertical kit framework**
-   - Template pack format with:
-     - persona assumptions
-     - workflow templates
-     - starter features
-     - growth playbooks
+7. Add QA pipeline gates:
+   - lint, unit, integration, e2e, security checks
+8. Add environment promotions:
+   - preview → staging → production with rollback snapshots
+9. Add deployment verification checks and incident hooks.
 
-7. **Measure success with system KPIs**
-   - Time-to-first-business (TTFBiz)
-   - Time-to-first-revenue (TTFR)
-   - Autonomy completion rate
-   - Human interventions per run
-   - Post-launch conversion uplift
+### Sprint D — Business generation and growth loops
+
+10. Implement vertical template pack format:
+    - persona assumptions
+    - business model defaults
+    - workflow templates
+    - growth playbooks
+11. Ship initial kits (NotaryOS + Faith Creator).
+12. Add monitor-triggered weekly optimization jobs.
+
+### Success metrics
+
+- **Time to First Business Plan**
+- **Time to First Deploy**
+- **Time to First Revenue Event**
+- **Autonomous Completion Rate**
+- **Human Interventions per Goal Run**
+- **Week-over-Week Conversion Uplift**
 
 ---
 
-## Proposed repository structure
+## Target repository structure
 
-```txt
+```text
 app/
   (marketing)/
   (auth)/
@@ -290,17 +338,20 @@ app/
     product-studio/
     growth/
     operations/
-    analytics/
+    intelligence/
+    governance/
 
 core/
   orchestrator/
+  policy/
   memory/
-  policies/
   events/
+  telemetry/
 
 domains/
-  planning/
-  build/
+  founder/
+  architect/
+  builder/
   ux/
   qa/
   growth/
@@ -309,18 +360,24 @@ domains/
 
 integrations/
   payments/
-  crm/
   analytics/
+  crm/
   notifications/
+  seo/
 
 workers/
-  agent-runner/
+  orchestration-runner/
   qa-runner/
   deploy-runner/
+  monitor-runner/
 
 prisma/
   schema.prisma
   migrations/
+
+docs/
+  ai-founder-os-system-design.md
+  adrs/
 ```
 
-This design positions LaunchOS as an **AI Founder OS**: not just generating code artifacts, but operating a full, continuously improving business system.
+This blueprint makes LaunchOS a **business-generation operating system** with autonomous planning, execution, deployment, and growth optimization—not just a software code generator.
